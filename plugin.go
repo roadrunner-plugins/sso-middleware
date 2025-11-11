@@ -228,8 +228,7 @@ func (p *Plugin) injectAuthenticatedContext(r *http.Request, session *Session) *
 
 	// Add Auth0 attributes to PSR attributes map
 	for key, value := range attributeMap {
-		p.logger.Debug("injecting user attributes into context",
-			zap.String("context", rrcontext.PsrContextKey),
+		p.log.Debug("injecting user attributes into context",
 			zap.String("key", key),
 			zap.Any("value", value))
 		psrAttributes[key] = value
