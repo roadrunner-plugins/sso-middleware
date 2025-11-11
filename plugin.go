@@ -2,7 +2,9 @@ package auth0
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
+	"strconv"
 	"time"
 
 	rrcontext "github.com/roadrunner-server/context"
@@ -209,60 +211,102 @@ func (p *Plugin) redirectToLogin(w http.ResponseWriter, r *http.Request) {
 
 // injectAuthenticatedContext injects authenticated user context into request
 func (p *Plugin) injectAuthenticatedContext(r *http.Request, session *Session) *http.Request {
-	userContext := NewUserContext(session)
-	attributeMap := userContext.GetAttributeMap(p.attributeKeys)
-
-	// Get existing PSR attributes or create new map
+	// Initialize PSR attributes if not already present
 	ctx := r.Context()
-	var psrAttributes map[string]interface{}
+	var psrAttributes map[string][]string
 
 	if existingAttrs := ctx.Value(rrcontext.PsrContextKey); existingAttrs != nil {
-		if attrs, ok := existingAttrs.(map[string]interface{}); ok {
+		if attrs, ok := existingAttrs.(map[string][]string); ok {
 			psrAttributes = attrs
 		} else {
-			psrAttributes = make(map[string]interface{})
+			psrAttributes = make(map[string][]string)
 		}
 	} else {
-		psrAttributes = make(map[string]interface{})
+		psrAttributes = make(map[string][]string)
 	}
 
-	// Add Auth0 attributes to PSR attributes map
-	for key, value := range attributeMap {
-		p.log.Debug("injecting user attributes into context",
-			zap.String("key", key),
-			zap.Any("value", value))
-		psrAttributes[key] = value
+	// Inject individual user attributes as strings
+	p.setStringAttr(psrAttributes, "auth0_authenticated", "true")
+	p.setStringAttr(psrAttributes, "auth0_user_id", session.UserID)
+	p.setStringAttr(psrAttributes, "auth0_session_id", session.ID)
+
+	// Inject profile attributes
+	if email, ok := session.Profile["email"].(string); ok {
+		p.setStringAttr(psrAttributes, "auth0_email", email)
+	}
+	if name, ok := session.Profile["name"].(string); ok {
+		p.setStringAttr(psrAttributes, "auth0_name", name)
+	}
+	if nickname, ok := session.Profile["nickname"].(string); ok {
+		p.setStringAttr(psrAttributes, "auth0_nickname", nickname)
+	}
+	if picture, ok := session.Profile["picture"].(string); ok {
+		p.setStringAttr(psrAttributes, "auth0_picture", picture)
+	}
+	if emailVerified, ok := session.Profile["email_verified"].(bool); ok {
+		p.setStringAttr(psrAttributes, "auth0_email_verified", strconv.FormatBool(emailVerified))
+	}
+
+	// Inject user context, profile, claims, and roles as JSON
+	userContext := NewUserContext(session)
+	if contextJSON, err := json.Marshal(userContext); err == nil {
+		p.setStringAttr(psrAttributes, UserContextKey, string(contextJSON))
+	}
+
+	if profileJSON, err := json.Marshal(session.Profile); err == nil {
+		p.setStringAttr(psrAttributes, p.attributeKeys.Profile, string(profileJSON))
+	}
+
+	if claimsJSON, err := json.Marshal(session.Claims); err == nil {
+		p.setStringAttr(psrAttributes, p.attributeKeys.Claims, string(claimsJSON))
+	}
+
+	// Extract and inject roles
+	roles := extractRoles(session.Claims)
+	if rolesJSON, err := json.Marshal(roles); err == nil {
+		p.setStringAttr(psrAttributes, p.attributeKeys.Roles, string(rolesJSON))
 	}
 
 	// Set the updated PSR attributes back to context
 	ctx = context.WithValue(ctx, rrcontext.PsrContextKey, psrAttributes)
+
+	p.log.Debug("injected authenticated user attributes",
+		zap.String("user_id", session.UserID),
+		zap.String("session_id", session.ID),
+		zap.Int("attribute_count", len(psrAttributes)))
 
 	return r.WithContext(ctx)
 }
 
 // injectUnauthenticatedContext injects unauthenticated context into request
 func (p *Plugin) injectUnauthenticatedContext(r *http.Request) *http.Request {
-	userContext := NewUnauthenticatedUserContext()
-	attributeMap := userContext.GetAttributeMap(p.attributeKeys)
-
-	// Get existing PSR attributes or create new map
+	// Initialize PSR attributes if not already present
 	ctx := r.Context()
-	var psrAttributes map[string]interface{}
+	var psrAttributes map[string][]string
 
 	if existingAttrs := ctx.Value(rrcontext.PsrContextKey); existingAttrs != nil {
-		if attrs, ok := existingAttrs.(map[string]interface{}); ok {
+		if attrs, ok := existingAttrs.(map[string][]string); ok {
 			psrAttributes = attrs
 		} else {
-			psrAttributes = make(map[string]interface{})
+			psrAttributes = make(map[string][]string)
 		}
 	} else {
-		psrAttributes = make(map[string]interface{})
+		psrAttributes = make(map[string][]string)
 	}
 
-	// Add Auth0 attributes to PSR attributes map
-	for key, value := range attributeMap {
-		psrAttributes[key] = value
+	// Inject unauthenticated status
+	p.setStringAttr(psrAttributes, "auth0_authenticated", "false")
+
+	// Inject empty user context
+	userContext := NewUnauthenticatedUserContext()
+	if contextJSON, err := json.Marshal(userContext); err == nil {
+		p.setStringAttr(psrAttributes, UserContextKey, string(contextJSON))
 	}
+
+	// Set empty values for other attributes
+	p.setStringAttr(psrAttributes, p.attributeKeys.Profile, "null")
+	p.setStringAttr(psrAttributes, p.attributeKeys.Claims, "null")
+	p.setStringAttr(psrAttributes, p.attributeKeys.Roles, "[]")
 
 	// Set the updated PSR attributes back to context
 	ctx = context.WithValue(ctx, rrcontext.PsrContextKey, psrAttributes)
@@ -293,4 +337,13 @@ func (p *Plugin) startCleanupRoutine() {
 // RPC returns the RPC interface for external API access
 func (p *Plugin) RPC() interface{} {
 	return &RPC{plugin: p}
+}
+
+// setStringAttr is a helper function to set a string attribute in PSR attributes map
+func (p *Plugin) setStringAttr(attrs map[string][]string, key, value string) {
+	if attrs[key] == nil {
+		attrs[key] = []string{value}
+	} else {
+		attrs[key] = append(attrs[key], value)
+	}
 }
