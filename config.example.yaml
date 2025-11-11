@@ -1,0 +1,142 @@
+# Example .rr.yaml configuration for Auth0 middleware
+
+version: "3"
+
+server:
+  command: "php public/index.php"
+
+http:
+  address: "0.0.0.0:8080"
+  middleware: [ "auth0" ] # Enable Auth0 middleware
+
+# Auth0 Configuration
+auth0:
+  # Auth0 Application Settings
+  domain: "${AUTH0_DOMAIN}"                    # your-tenant.auth0.com
+  client_id: "${AUTH0_CLIENT_ID}"              # Your Auth0 application client ID
+  client_secret: "${AUTH0_CLIENT_SECRET}"      # Your Auth0 application client secret
+  
+  # Application URLs
+  callback_url: "http://localhost:8080/auth/callback"
+  logout_url: "http://localhost:8080"
+  
+  # Session Management
+  session:
+    cookie_name: "auth0_session"
+    secret_key: "${SESSION_SECRET}"            # Must be at least 32 characters
+    max_age: 3600                              # 1 hour in seconds
+    secure: false                              # Set to true in production with HTTPS
+    http_only: true                            # Always true for security
+    same_site: "lax"                           # "strict", "lax", or "none"
+  
+  # URL Protection Configuration
+  protection:
+    mode: "pattern"                            # "global", "pattern", or "disabled"
+    
+    # Protected URL patterns (regex) - these require authentication
+    protected_patterns:
+      - "^/admin.*"                           # All admin routes
+      - "^/user/profile.*"                    # User profile routes
+      - "^/api/private.*"                     # Private API routes
+      - "^/dashboard.*"                       # Dashboard routes
+    
+    # Excluded URL patterns (regex) - these bypass all authentication
+    excluded_patterns:
+      - "^/health.*"                          # Health check endpoints
+      - "^/public.*"                          # Public content
+      - "^/assets.*"                          # Static assets
+      - "^/css.*"                            # CSS files
+      - "^/js.*"                             # JavaScript files
+      - "^/images.*"                         # Image files
+    
+    # Public routes (exact matches) - these don't require authentication
+    public_routes:
+      - "/"                                   # Home page
+      - "/about"                              # About page
+      - "/contact"                            # Contact page
+      - "/terms"                              # Terms of service
+      - "/privacy"                            # Privacy policy
+  
+  # User Attribute Configuration (PSR7 attribute names)
+  user_attributes:
+    profile_attribute: "auth0_user"           # User profile data
+    claims_attribute: "auth0_claims"          # JWT claims
+    roles_attribute: "auth0_roles"            # User roles
+  
+  # OAuth2 Scopes
+  scopes:
+    - "openid"
+    - "profile"
+    - "email"
+  
+  # Authentication Routes (handled by RoadRunner, NOT PHP)
+  routes:
+    login: "/auth/login"                      # Redirects to Auth0
+    callback: "/auth/callback"                # Handles OAuth callback
+    logout: "/auth/logout"                    # Handles logout
+    user_info: "/auth/user"                   # Returns user info as JSON
+
+# Logging
+logs:
+  mode: "development"
+  level: "debug"
+  encoding: "console"
+  output:
+    - "stdout"
+
+# Optional: RPC for external management
+rpc:
+  listen: "tcp://127.0.0.1:6001"
+
+---
+
+# Alternative configuration examples:
+
+# Example 1: Global protection mode
+# auth0:
+#   protection:
+#     mode: "global"                          # Protect everything by default
+#     public_routes:                          # Only these routes are public
+#       - "/"
+#       - "/about"
+#       - "/contact"
+#     excluded_patterns:                      # These bypass authentication
+#       - "^/assets.*"
+#       - "^/health.*"
+
+# Example 2: Disabled mode (for development)
+# auth0:
+#   protection:
+#     mode: "disabled"                        # No authentication required
+
+# Example 3: Production configuration
+# auth0:
+#   domain: "production-tenant.auth0.com"
+#   callback_url: "https://myapp.com/auth/callback"
+#   logout_url: "https://myapp.com"
+#   session:
+#     secure: true                           # HTTPS only cookies
+#     max_age: 7200                          # 2 hours
+#     same_site: "strict"                    # Strict CSRF protection
+#   protection:
+#     mode: "global"
+#     excluded_patterns:
+#       - "^/health.*"
+#       - "^/metrics.*"
+#       - "^/static.*"
+
+# Example 4: API-focused configuration
+# auth0:
+#   protection:
+#     mode: "pattern"
+#     protected_patterns:
+#       - "^/api/v1/.*"                      # Protect all API v1 routes
+#       - "^/graphql.*"                      # Protect GraphQL endpoint
+#     excluded_patterns:
+#       - "^/api/public/.*"                  # Public API routes
+#   scopes:
+#     - "openid"
+#     - "profile"
+#     - "email"
+#     - "read:users"                         # Custom scope
+#     - "write:users"                        # Custom scope
