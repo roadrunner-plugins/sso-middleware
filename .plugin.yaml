@@ -1,0 +1,8 @@
+name: auth0-middleware
+description: 'A comprehensive Auth0 SSO authentication middleware for RoadRunner that provides enterprise-grade authentication capabilities with flexible URL protection patterns and seamless integration with PHP applications.'
+category: http
+owner: butschster
+author:
+  name: Pavel Buchnev
+  email: butschster@gmail.com
+license: MIT
