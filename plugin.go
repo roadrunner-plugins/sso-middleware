@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"strconv"
 	"time"
 
 	rrcontext "github.com/roadrunner-server/context"
@@ -33,7 +32,6 @@ type Plugin struct {
 	sessionManager *SessionManager
 	urlMatcher     *URLMatcher
 	handler        *Handler
-	attributeKeys  *AttributeKeys
 
 	// Background cleanup ticker
 	cleanupTicker *time.Ticker
@@ -83,9 +81,6 @@ func (p *Plugin) Init(cfg Configurer, log Logger) error {
 
 	// Initialize handler
 	p.handler = NewHandler(client, p.sessionManager, p.config, p.log)
-
-	// Initialize attribute keys
-	p.attributeKeys = NewAttributeKeys(&p.config.UserAttributes)
 
 	// Start background cleanup goroutine
 	p.startCleanupRoutine()
@@ -212,6 +207,7 @@ func (p *Plugin) redirectToLogin(w http.ResponseWriter, r *http.Request) {
 }
 
 // injectAuthenticatedContext injects authenticated user context into request
+// Sets a single "auth0" PSR attribute containing JSON with complete user data
 func (p *Plugin) injectAuthenticatedContext(r *http.Request, session *Session) *http.Request {
 	// Initialize PSR attributes if not already present
 	ctx := r.Context()
@@ -227,23 +223,18 @@ func (p *Plugin) injectAuthenticatedContext(r *http.Request, session *Session) *
 		psrAttributes = make(map[string][]string)
 	}
 
-	// Inject individual user attributes as strings
-	p.setStringAttr(psrAttributes, "auth0_authenticated", "true")
-	p.setStringAttr(psrAttributes, "auth0_user_id", session.UserID)
-	p.setStringAttr(psrAttributes, "auth0_session_id", session.ID)
-
-	if profileJSON, err := json.Marshal(session.Profile); err == nil {
-		p.setStringAttr(psrAttributes, p.attributeKeys.Profile, string(profileJSON))
-	}
-
-	if claimsJSON, err := json.Marshal(session.Claims); err == nil {
-		p.setStringAttr(psrAttributes, p.attributeKeys.Claims, string(claimsJSON))
-	}
-
-	// Extract and inject roles
-	roles := extractRoles(session.Claims)
-	if rolesJSON, err := json.Marshal(roles); err == nil {
-		p.setStringAttr(psrAttributes, p.attributeKeys.Roles, string(rolesJSON))
+	// Create Auth0 data structure
+	auth0Data := NewAuth0Data(session)
+	if auth0Data != nil {
+		// Serialize to JSON
+		if auth0JSON, err := json.Marshal(auth0Data); err == nil {
+			p.setStringAttr(psrAttributes, "auth0", string(auth0JSON))
+		} else {
+			// Log error but continue without setting attribute
+			p.log.Error("failed to serialize auth0 data",
+				zap.String("user_id", session.UserID),
+				zap.Error(err))
+		}
 	}
 
 	// Set the updated PSR attributes back to context
@@ -253,28 +244,12 @@ func (p *Plugin) injectAuthenticatedContext(r *http.Request, session *Session) *
 }
 
 // injectUnauthenticatedContext injects unauthenticated context into request
+// For unauthenticated users, we do NOT set any auth0 attribute
+// The absence of the "auth0" attribute indicates the user is not authenticated
 func (p *Plugin) injectUnauthenticatedContext(r *http.Request) *http.Request {
-	// Initialize PSR attributes if not already present
-	ctx := r.Context()
-	var psrAttributes map[string][]string
-
-	if existingAttrs := ctx.Value(rrcontext.PsrContextKey); existingAttrs != nil {
-		if attrs, ok := existingAttrs.(map[string][]string); ok {
-			psrAttributes = attrs
-		} else {
-			psrAttributes = make(map[string][]string)
-		}
-	} else {
-		psrAttributes = make(map[string][]string)
-	}
-
-	// Inject unauthenticated status
-	p.setStringAttr(psrAttributes, "auth0_authenticated", "false")
-
-	// Set the updated PSR attributes back to context
-	ctx = context.WithValue(ctx, rrcontext.PsrContextKey, psrAttributes)
-
-	return r.WithContext(ctx)
+	// No need to set any attributes for unauthenticated users
+	// PHP application will treat absence of "auth0" attribute as guest user
+	return r
 }
 
 // startCleanupRoutine starts background session cleanup

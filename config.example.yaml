@@ -17,8 +17,8 @@ auth0:
   client_secret: "${AUTH0_CLIENT_SECRET}"      # Your Auth0 application client secret
   
   # Application URLs
-  callback_url: "http://localhost:8080/auth/callback"
-  logout_url: "http://localhost:8080"
+  callback_url: "http://localhost:8080/_auth/callback"
+  logout_url: "http://localhost:8080/_auth/logout"
   
   # Session Management
   session:
@@ -68,13 +68,6 @@ auth0:
     - "openid"
     - "profile"
     - "email"
-  
-  # Authentication Routes (handled by RoadRunner, NOT PHP)
-  routes:
-    login: "/auth/login"                      # Redirects to Auth0
-    callback: "/auth/callback"                # Handles OAuth callback
-    logout: "/auth/logout"                    # Handles logout
-    user_info: "/auth/user"                   # Returns user info as JSON
 
 # Logging
 logs:
