@@ -182,17 +182,30 @@ func (p *Plugin) isAuthRoute(path string) bool {
 func (p *Plugin) handleAuthRoute(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
+	p.log.Info("handling auth route",
+		zap.String("path", path),
+		zap.String("query", r.URL.RawQuery),
+		zap.String("configured_login", p.config.Routes.Login),
+		zap.String("configured_callback", p.config.Routes.Callback),
+		zap.String("configured_logout", p.config.Routes.Logout),
+		zap.String("configured_userinfo", p.config.Routes.UserInfo))
+
 	switch {
 	case p.urlMatcher.IsAuthRoute(path, p.config.Routes.Login):
+		p.log.Info("routing to login handler")
 		p.handler.HandleLogin(w, r)
 	case p.urlMatcher.IsAuthRoute(path, p.config.Routes.Callback):
+		p.log.Info("routing to callback handler")
 		p.handler.HandleCallback(w, r)
 	case p.urlMatcher.IsAuthRoute(path, p.config.Routes.Logout):
+		p.log.Info("routing to logout handler")
 		p.handler.HandleLogout(w, r)
 	case p.urlMatcher.IsAuthRoute(path, p.config.Routes.UserInfo):
+		p.log.Info("routing to userinfo handler")
 		p.handler.HandleUserInfo(w, r)
 	default:
 		// This shouldn't happen, but handle gracefully
+		p.log.Warn("auth route matched but no handler found", zap.String("path", path))
 		http.NotFound(w, r)
 	}
 }
@@ -224,6 +237,14 @@ func (p *Plugin) injectAuthenticatedContext(r *http.Request, session *Session) *
 	} else {
 		psrAttributes = make(map[string][]string)
 	}
+
+	// Log what we're injecting
+	p.log.Debug("injecting authenticated context",
+		zap.String("user_id", session.UserID),
+		zap.String("session_id", session.ID),
+		zap.Bool("has_profile", len(session.Profile) > 0),
+		zap.Bool("has_claims", len(session.Claims) > 0),
+		zap.String("state", session.State))
 
 	// Inject individual user attributes as strings
 	p.setStringAttr(psrAttributes, "auth0_authenticated", "true")
