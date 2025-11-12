@@ -3,6 +3,7 @@ package auth0
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -148,6 +149,9 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 
 	// Create user profile
 	profile := h.extractProfile(claims)
+
+	// Log all Auth0 profile data for debugging
+	h.logAuth0ProfileData(op, userID, claims, profile)
 
 	// Delete temporary session
 	h.sessionManager.DeleteSession(session.ID)
@@ -343,5 +347,105 @@ func (h *Handler) writeErrorResponse(w http.ResponseWriter, status int, errorCod
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		h.logger.Error("failed to encode error response", zap.Error(err))
+	}
+}
+
+// logAuth0ProfileData logs all profile data received from Auth0 server
+// This provides comprehensive debugging information for authentication flows
+func (h *Handler) logAuth0ProfileData(op string, userID string, claims map[string]interface{}, profile map[string]interface{}) {
+	// Serialize claims to JSON for complete visibility
+	claimsJSON, err := json.MarshalIndent(claims, "", "  ")
+	if err != nil {
+		h.logger.Error("failed to serialize claims for logging",
+			zap.String("op", op),
+			zap.String("user_id", userID),
+			zap.Error(err))
+		// Still try to log with error message
+		claimsJSON = []byte(fmt.Sprintf("Error serializing claims: %v", err))
+	}
+
+	// Serialize profile to JSON for complete visibility
+	profileJSON, err := json.MarshalIndent(profile, "", "  ")
+	if err != nil {
+		h.logger.Error("failed to serialize profile for logging",
+			zap.String("op", op),
+			zap.String("user_id", userID),
+			zap.Error(err))
+		profileJSON = []byte(fmt.Sprintf("Error serializing profile: %v", err))
+	}
+
+	// Extract key fields for structured logging
+	email, _ := claims["email"].(string)
+	emailVerified, _ := claims["email_verified"].(bool)
+	name, _ := claims["name"].(string)
+	picture, _ := claims["picture"].(string)
+	nickname, _ := claims["nickname"].(string)
+
+	// Log with structured fields for easy filtering and searching
+	h.logger.Info("Auth0 profile data received",
+		zap.String("op", op),
+		zap.String("user_id", userID),
+		zap.String("email", email),
+		zap.Bool("email_verified", emailVerified),
+		zap.String("name", name),
+		zap.String("nickname", nickname),
+		zap.String("picture", picture),
+		zap.String("claims_json", string(claimsJSON)),
+		zap.String("profile_json", string(profileJSON)),
+		zap.Int("claims_count", len(claims)),
+		zap.Int("profile_fields_count", len(profile)),
+	)
+
+	// Debug level: log individual claim keys for troubleshooting
+	claimKeys := make([]string, 0, len(claims))
+	for key := range claims {
+		claimKeys = append(claimKeys, key)
+	}
+
+	h.logger.Debug("Auth0 claims keys",
+		zap.String("op", op),
+		zap.String("user_id", userID),
+		zap.Strings("claim_keys", claimKeys),
+	)
+
+	// Debug level: log individual profile keys for troubleshooting
+	profileKeys := make([]string, 0, len(profile))
+	for key := range profile {
+		profileKeys = append(profileKeys, key)
+	}
+
+	h.logger.Debug("Auth0 profile keys",
+		zap.String("op", op),
+		zap.String("user_id", userID),
+		zap.Strings("profile_keys", profileKeys),
+	)
+
+	// If there are Auth0-specific metadata fields, log them separately
+	if userMetadata, ok := claims["https://auth0.com/user_metadata"].(map[string]interface{}); ok && len(userMetadata) > 0 {
+		userMetadataJSON, _ := json.MarshalIndent(userMetadata, "", "  ")
+		h.logger.Debug("Auth0 user_metadata",
+			zap.String("op", op),
+			zap.String("user_id", userID),
+			zap.String("user_metadata_json", string(userMetadataJSON)),
+		)
+	}
+
+	if appMetadata, ok := claims["https://auth0.com/app_metadata"].(map[string]interface{}); ok && len(appMetadata) > 0 {
+		appMetadataJSON, _ := json.MarshalIndent(appMetadata, "", "  ")
+		h.logger.Debug("Auth0 app_metadata",
+			zap.String("op", op),
+			zap.String("user_id", userID),
+			zap.String("app_metadata_json", string(appMetadataJSON)),
+		)
+	}
+
+	// Extract and log roles if present
+	roles := extractRoles(claims)
+	if len(roles) > 0 {
+		h.logger.Info("Auth0 user roles",
+			zap.String("op", op),
+			zap.String("user_id", userID),
+			zap.Strings("roles", roles),
+		)
 	}
 }
