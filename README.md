@@ -167,14 +167,18 @@ For better type safety and code organization, create a User DTO in your PHP appl
 
 namespace App\Auth;
 
-class Auth0User
+final readonly class Auth0User
 {
-    private ?array $data;
-    
-    public function __construct(?string $auth0JSON)
+    public static function fromJson(?string $json): self
     {
-        $this->data = $auth0JSON ? json_decode($auth0JSON, true) : null;
+        return new self(
+            $json !== null
+                ? \json_decode($json, true, 512, JSON_THROW_ON_ERROR)
+                : null,
+        );
     }
+
+    public function __construct(private ?array $data) {}
     
     public function isAuthenticated(): bool
     {
@@ -262,21 +266,21 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 
-class Auth0Middleware implements MiddlewareInterface
+final class Auth0Middleware implements MiddlewareInterface
 {
     public function process(
-        ServerRequestInterface $request, 
-        RequestHandlerInterface $handler
+        ServerRequestInterface $request,
+        RequestHandlerInterface $handler,
     ): ResponseInterface {
         // Get auth0 attribute from RoadRunner middleware
         $auth0JSON = $request->getAttribute('auth0');
-        
+
         // Create user object
-        $user = new Auth0User($auth0JSON);
-        
+        $user = Auth0User::fromJson($auth0JSON);
+
         // Inject user object into request for easy access in controllers
         $request = $request->withAttribute('user', $user);
-        
+
         return $handler->handle($request);
     }
 }
