@@ -73,6 +73,11 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	const op = "auth0_handle_callback"
 
+	h.logger.Info("callback handler invoked",
+		zap.String("op", op),
+		zap.String("path", r.URL.Path),
+		zap.String("query", r.URL.RawQuery))
+
 	// Get session from cookie
 	session, err := h.sessionManager.GetSessionFromCookie(r)
 	if err != nil {
@@ -80,6 +85,11 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid session", http.StatusBadRequest)
 		return
 	}
+
+	h.logger.Debug("session retrieved from cookie",
+		zap.String("op", op),
+		zap.String("session_id", session.ID),
+		zap.String("state", session.State))
 
 	// Validate state parameter
 	state := r.URL.Query().Get("state")
@@ -91,6 +101,8 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid state parameter", http.StatusBadRequest)
 		return
 	}
+
+	h.logger.Debug("state validated successfully", zap.String("op", op))
 
 	// Get authorization code
 	code := r.URL.Query().Get("code")
@@ -107,6 +119,10 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Authorization failed: "+errorDesc, http.StatusBadRequest)
 		return
 	}
+
+	h.logger.Debug("authorization code received",
+		zap.String("op", op),
+		zap.Int("code_length", len(code)))
 
 	// Exchange code for tokens
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
