@@ -103,19 +103,20 @@ func (ah *AttributesHelper) GetBool(r *http.Request, key string) bool {
 	return result
 }
 
-// GetUserContext retrieves and deserializes the Auth0 user context
-func (ah *AttributesHelper) GetUserContext(r *http.Request) (*UserContext, error) {
-	contextJSON := ah.GetString(r, UserContextKey)
-	if contextJSON == "" {
-		return NewUnauthenticatedUserContext(), nil
+// GetAuth0Data retrieves and deserializes the Auth0 data from the single "auth0" attribute
+// Returns nil if user is not authenticated (attribute not present)
+func (ah *AttributesHelper) GetAuth0Data(r *http.Request) (*Auth0Data, error) {
+	auth0JSON := ah.GetString(r, "auth0")
+	if auth0JSON == "" {
+		return nil, nil // Not authenticated
 	}
 
-	var userContext UserContext
-	if err := json.Unmarshal([]byte(contextJSON), &userContext); err != nil {
+	var auth0Data Auth0Data
+	if err := json.Unmarshal([]byte(auth0JSON), &auth0Data); err != nil {
 		return nil, err
 	}
 
-	return &userContext, nil
+	return &auth0Data, nil
 }
 
 // GetUserProfile retrieves and deserializes the user profile
@@ -164,8 +165,9 @@ func (ah *AttributesHelper) GetUserRoles(r *http.Request, rolesKey string) ([]st
 }
 
 // IsAuthenticated checks if the current request is authenticated
+// Simply checks if the "auth0" attribute exists
 func (ah *AttributesHelper) IsAuthenticated(r *http.Request) bool {
-	return ah.GetBool(r, "auth0_authenticated")
+	return ah.GetString(r, "auth0") != ""
 }
 
 // GetUserID retrieves the authenticated user's ID

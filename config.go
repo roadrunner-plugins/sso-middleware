@@ -21,9 +21,6 @@ type Config struct {
 	// URL Protection Configuration
 	Protection ProtectionConfig `mapstructure:"protection" json:"protection"`
 
-	// User Attribute Configuration
-	UserAttributes UserAttributesConfig `mapstructure:"user_attributes" json:"user_attributes"`
-
 	// Auth0 Scopes
 	Scopes []string `mapstructure:"scopes" json:"scopes"`
 
@@ -47,13 +44,6 @@ type ProtectionConfig struct {
 	ProtectedPatterns []string `mapstructure:"protected_patterns" json:"protected_patterns"`
 	ExcludedPatterns  []string `mapstructure:"excluded_patterns" json:"excluded_patterns"`
 	PublicRoutes      []string `mapstructure:"public_routes" json:"public_routes"`
-}
-
-// UserAttributesConfig represents user attribute injection configuration
-type UserAttributesConfig struct {
-	ProfileAttribute string `mapstructure:"profile_attribute" json:"profile_attribute"`
-	ClaimsAttribute  string `mapstructure:"claims_attribute" json:"claims_attribute"`
-	RolesAttribute   string `mapstructure:"roles_attribute" json:"roles_attribute"`
 }
 
 // RoutesConfig represents authentication routes configuration
@@ -103,17 +93,6 @@ func (c *Config) InitDefaults() {
 	// Protection defaults
 	if c.Protection.Mode == "" {
 		c.Protection.Mode = "disabled"
-	}
-
-	// User attributes defaults
-	if c.UserAttributes.ProfileAttribute == "" {
-		c.UserAttributes.ProfileAttribute = "auth0_user"
-	}
-	if c.UserAttributes.ClaimsAttribute == "" {
-		c.UserAttributes.ClaimsAttribute = "auth0_claims"
-	}
-	if c.UserAttributes.RolesAttribute == "" {
-		c.UserAttributes.RolesAttribute = "auth0_roles"
 	}
 
 	// Scopes defaults
