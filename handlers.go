@@ -73,7 +73,7 @@ func (h *Handler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 	const op = "auth0_handle_callback"
 
-	h.logger.Info("callback handler invoked",
+	h.logger.Debug("callback handler invoked",
 		zap.String("op", op),
 		zap.String("path", r.URL.Path),
 		zap.String("query", r.URL.RawQuery))
@@ -187,7 +187,7 @@ func (h *Handler) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.logger.Info("user authenticated successfully",
+	h.logger.Debug("user authenticated successfully",
 		zap.String("op", op),
 		zap.String("user_id", userID),
 		zap.String("session_id", authSession.ID))
@@ -398,7 +398,7 @@ func (h *Handler) logAuth0ProfileData(op string, userID string, claims map[strin
 	nickname, _ := claims["nickname"].(string)
 
 	// Log with structured fields for easy filtering and searching
-	h.logger.Info("Auth0 profile data received",
+	h.logger.Debug("Auth0 profile data received",
 		zap.String("op", op),
 		zap.String("user_id", userID),
 		zap.String("email", email),
@@ -458,7 +458,7 @@ func (h *Handler) logAuth0ProfileData(op string, userID string, claims map[strin
 	// Extract and log roles if present
 	roles := extractRoles(claims)
 	if len(roles) > 0 {
-		h.logger.Info("Auth0 user roles",
+		h.logger.Debug("Auth0 user roles",
 			zap.String("op", op),
 			zap.String("user_id", userID),
 			zap.Strings("roles", roles),

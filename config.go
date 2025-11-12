@@ -68,10 +68,10 @@ type RoutesConfig struct {
 func (c *Config) InitDefaults() {
 	// Auth0 defaults
 	if c.CallbackURL == "" {
-		c.CallbackURL = "http://localhost:8080/auth/callback"
+		c.CallbackURL = "http://localhost:8080/_auth/callback"
 	}
 	if c.LogoutURL == "" {
-		c.LogoutURL = "http://localhost:8080"
+		c.LogoutURL = "http://localhost:8080/_auth/logout"
 	}
 
 	// Session defaults

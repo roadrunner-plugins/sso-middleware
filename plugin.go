@@ -90,12 +90,9 @@ func (p *Plugin) Init(cfg Configurer, log Logger) error {
 	// Start background cleanup goroutine
 	p.startCleanupRoutine()
 
-	p.log.Info("Auth0 middleware initialized",
+	p.log.Debug("Auth0 middleware initialized",
 		zap.String("domain", p.config.Domain),
-		zap.String("protection_mode", p.config.Protection.Mode),
-		zap.Int("protected_patterns", len(p.config.Protection.ProtectedPatterns)),
-		zap.Int("excluded_patterns", len(p.config.Protection.ExcludedPatterns)),
-		zap.Int("public_routes", len(p.config.Protection.PublicRoutes)))
+		zap.String("protection_mode", p.config.Protection.Mode))
 
 	return nil
 }
@@ -182,14 +179,6 @@ func (p *Plugin) isAuthRoute(path string) bool {
 func (p *Plugin) handleAuthRoute(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
-	p.log.Info("handling auth route",
-		zap.String("path", path),
-		zap.String("query", r.URL.RawQuery),
-		zap.String("configured_login", p.config.Routes.Login),
-		zap.String("configured_callback", p.config.Routes.Callback),
-		zap.String("configured_logout", p.config.Routes.Logout),
-		zap.String("configured_userinfo", p.config.Routes.UserInfo))
-
 	switch {
 	case p.urlMatcher.IsAuthRoute(path, p.config.Routes.Login):
 		p.log.Info("routing to login handler")
@@ -238,41 +227,10 @@ func (p *Plugin) injectAuthenticatedContext(r *http.Request, session *Session) *
 		psrAttributes = make(map[string][]string)
 	}
 
-	// Log what we're injecting
-	p.log.Debug("injecting authenticated context",
-		zap.String("user_id", session.UserID),
-		zap.String("session_id", session.ID),
-		zap.Bool("has_profile", len(session.Profile) > 0),
-		zap.Bool("has_claims", len(session.Claims) > 0),
-		zap.String("state", session.State))
-
 	// Inject individual user attributes as strings
 	p.setStringAttr(psrAttributes, "auth0_authenticated", "true")
 	p.setStringAttr(psrAttributes, "auth0_user_id", session.UserID)
 	p.setStringAttr(psrAttributes, "auth0_session_id", session.ID)
-
-	// Inject profile attributes
-	if email, ok := session.Profile["email"].(string); ok {
-		p.setStringAttr(psrAttributes, "auth0_email", email)
-	}
-	if name, ok := session.Profile["name"].(string); ok {
-		p.setStringAttr(psrAttributes, "auth0_name", name)
-	}
-	if nickname, ok := session.Profile["nickname"].(string); ok {
-		p.setStringAttr(psrAttributes, "auth0_nickname", nickname)
-	}
-	if picture, ok := session.Profile["picture"].(string); ok {
-		p.setStringAttr(psrAttributes, "auth0_picture", picture)
-	}
-	if emailVerified, ok := session.Profile["email_verified"].(bool); ok {
-		p.setStringAttr(psrAttributes, "auth0_email_verified", strconv.FormatBool(emailVerified))
-	}
-
-	// Inject user context, profile, claims, and roles as JSON
-	userContext := NewUserContext(session)
-	if contextJSON, err := json.Marshal(userContext); err == nil {
-		p.setStringAttr(psrAttributes, UserContextKey, string(contextJSON))
-	}
 
 	if profileJSON, err := json.Marshal(session.Profile); err == nil {
 		p.setStringAttr(psrAttributes, p.attributeKeys.Profile, string(profileJSON))
@@ -290,11 +248,6 @@ func (p *Plugin) injectAuthenticatedContext(r *http.Request, session *Session) *
 
 	// Set the updated PSR attributes back to context
 	ctx = context.WithValue(ctx, rrcontext.PsrContextKey, psrAttributes)
-
-	p.log.Debug("injected authenticated user attributes",
-		zap.String("user_id", session.UserID),
-		zap.String("session_id", session.ID),
-		zap.Int("attribute_count", len(psrAttributes)))
 
 	return r.WithContext(ctx)
 }
@@ -317,17 +270,6 @@ func (p *Plugin) injectUnauthenticatedContext(r *http.Request) *http.Request {
 
 	// Inject unauthenticated status
 	p.setStringAttr(psrAttributes, "auth0_authenticated", "false")
-
-	// Inject empty user context
-	userContext := NewUnauthenticatedUserContext()
-	if contextJSON, err := json.Marshal(userContext); err == nil {
-		p.setStringAttr(psrAttributes, UserContextKey, string(contextJSON))
-	}
-
-	// Set empty values for other attributes
-	p.setStringAttr(psrAttributes, p.attributeKeys.Profile, "null")
-	p.setStringAttr(psrAttributes, p.attributeKeys.Claims, "null")
-	p.setStringAttr(psrAttributes, p.attributeKeys.Roles, "[]")
 
 	// Set the updated PSR attributes back to context
 	ctx = context.WithValue(ctx, rrcontext.PsrContextKey, psrAttributes)
