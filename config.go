@@ -66,12 +66,26 @@ type RoutesConfig struct {
 
 // InitDefaults sets default values for configuration
 func (c *Config) InitDefaults() {
+	// Routes defaults
+	if c.Routes.Login == "" {
+		c.Routes.Login = "/_auth/login"
+	}
+	if c.Routes.Callback == "" {
+		c.Routes.Callback = "/_auth/callback"
+	}
+	if c.Routes.Logout == "" {
+		c.Routes.Logout = "/_auth/logout"
+	}
+	if c.Routes.UserInfo == "" {
+		c.Routes.UserInfo = "/_auth/user"
+	}
+
 	// Auth0 defaults
 	if c.CallbackURL == "" {
-		c.CallbackURL = "http://localhost:8080/auth/callback"
+		c.CallbackURL = "http://localhost:8080/" + c.Routes.Callback
 	}
 	if c.LogoutURL == "" {
-		c.LogoutURL = "http://localhost:8080"
+		c.LogoutURL = "http://localhost:8080/" + c.Routes.Logout
 	}
 
 	// Session defaults
@@ -105,20 +119,6 @@ func (c *Config) InitDefaults() {
 	// Scopes defaults
 	if len(c.Scopes) == 0 {
 		c.Scopes = []string{"openid", "profile", "email"}
-	}
-
-	// Routes defaults
-	if c.Routes.Login == "" {
-		c.Routes.Login = "/_auth/login"
-	}
-	if c.Routes.Callback == "" {
-		c.Routes.Callback = "/_auth/callback"
-	}
-	if c.Routes.Logout == "" {
-		c.Routes.Logout = "/_auth/logout"
-	}
-	if c.Routes.UserInfo == "" {
-		c.Routes.UserInfo = "/_auth/user"
 	}
 }
 
