@@ -1,4 +1,4 @@
-module github.com/roadrunner-plugins/sso-middleware
+module github.com/roadrunner-plugins/auth0-middleware
 
 go 1.24
 
